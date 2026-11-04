@@ -29,6 +29,7 @@ TXT = {
         danger="🚨 DIQQAT! Xavfli! Bu havola/fayl kiber hujum yoki zararli dastur bo'lishi mumkin. Ochmang va o'rnatmang!\n\n",
         bad_input="Faqat havola yoki fayl yuboring.", big="Fayl 20 MB dan katta, tekshirib bo'lmaydi.",
         err="Xatolik yuz berdi, keyinroq urinib ko'ring.",
+        noai="(AI tushuntirishi hozir mavjud emas, faqat antivirus natijasi ko'rsatildi.)",
         note="\n\nℹ️ Hech qaysi tekshiruv 100% kafolat bermaydi. Shubha bo'lsa, ishlatmang."),
     "ru": dict(
         menu="Выберите раздел:", check="🔍 Проверка", admin="✉️ Написать админу",
@@ -39,6 +40,7 @@ TXT = {
         danger="🚨 ВНИМАНИЕ! Опасно! Это может быть кибератака или вредоносная программа. Не открывайте и не устанавливайте!\n\n",
         bad_input="Отправьте только ссылку или файл.", big="Файл больше 20 МБ, проверить нельзя.",
         err="Произошла ошибка, попробуйте позже.",
+        noai="(Пояснение ИИ сейчас недоступно, показан только результат антивирусов.)",
         note="\n\nℹ️ Ни одна проверка не даёт 100% гарантии. При сомнениях не используйте."),
     "en": dict(
         menu="Choose a section:", check="🔍 Check", admin="✉️ Message admin",
@@ -49,6 +51,7 @@ TXT = {
         danger="🚨 WARNING! Dangerous! This may be a cyber attack or malware. Do not open or install it!\n\n",
         bad_input="Please send only a link or a file.", big="File is over 20 MB, cannot be checked.",
         err="Something went wrong, try again later.",
+        noai="(AI explanation is unavailable right now, only the antivirus result is shown.)",
         note="\n\nℹ️ No scan gives a 100% guarantee. If in doubt, don't use it."),
 }
 
@@ -148,8 +151,14 @@ async def ai_explain(lang, kind, target, stats, info):
         "overlay, install packages). If the scan found threats, explain the likely risk. "
         "Never claim it is 100% safe."
     )
-    r = await ai.aio.models.generate_content(model=MODEL, contents=prompt)
-    return r.text or ""
+    for attempt in range(3):
+        try:
+            r = await ai.aio.models.generate_content(model=MODEL, contents=prompt)
+            return r.text or ""
+        except Exception:
+            logging.exception("gemini failed (attempt %s)", attempt + 1)
+            await asyncio.sleep(4 * (attempt + 1))
+    return None
 
 
 # ---------- Handlerlar ----------
@@ -235,7 +244,7 @@ async def check(m: Message, bot: Bot):
 
         bad = stats.get("malicious", 0) + stats.get("suspicious", 0)
         dangerous = bad >= 1  # xohlasangiz chegarani 2-3 ga oshiring (false-positive kamayadi)
-        explanation = await ai_explain(lang, kind, target, stats, info)
+        explanation = await ai_explain(lang, kind, target, stats, info) or t["noai"]
         head = t["danger"] if dangerous else t["safe"]
         stat_line = f"🛡 VirusTotal: {bad} / {sum(stats.values())}\n\n"
         await wait.edit_text(head + stat_line + explanation + t["note"])
