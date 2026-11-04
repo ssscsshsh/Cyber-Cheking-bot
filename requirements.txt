@@ -1,0 +1,6 @@
+aiogram>=3.13
+aiohttp
+httpx
+google-genai
+python-dotenv
+androguard
