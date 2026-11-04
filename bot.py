@@ -13,7 +13,7 @@ load_dotenv()
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 ADMIN_ID = int(os.environ["ADMIN_ID"])
 VT_KEY = os.environ["VT_API_KEY"]
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODELS = [os.getenv("GEMINI_MODEL", "gemini-3.8-flash"), "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 ai = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 MAX_FILE = 20 * 1024 * 1024  # Telegram botlar uchun yuklab olish limiti
@@ -154,13 +154,12 @@ async def ai_explain(lang, kind, target, stats, info):
         "overlay, install packages). If the scan found threats, explain the likely risk. "
         "Never claim it is 100% safe."
     )
-    for attempt in range(2):
+    for model in MODELS:  # biri band bo'lsa, keyingisiga o'tadi
         try:
-            r = await asyncio.wait_for(ai.aio.models.generate_content(model=MODEL, contents=prompt), timeout=25)
+            r = await asyncio.wait_for(ai.aio.models.generate_content(model=model, contents=prompt), timeout=20)
             return r.text or ""
         except Exception:
-            logging.exception("gemini failed (attempt %s)", attempt + 1)
-            await asyncio.sleep(4 * (attempt + 1))
+            logging.exception("gemini failed (%s)", model)
     return None
 
 
